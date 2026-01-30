@@ -1,31 +1,41 @@
 import requests
 import json
-import os
+import re
 
-def get_vpn_password():
-    # Burada VPNBook'un şifreyi sunduğu sayfayı hedefliyoruz
-    # Not: VPNBook şifreyi resim olarak verirse OCR (görsel okuma) gerekebilir.
-    # Şimdilik senin JSON yapına göre otomatik güncelleme mantığını kuruyoruz.
+def vpn_password_al():
     url = "https://www.vpnbook.com/freevpn"
-    response = requests.get(url)
+    # Siteye istek gönderiyoruz
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    response = requests.get(url, headers=headers)
     
-    # Varsayalım ki yeni şifreyi bir şekilde çektik (örnek: 'abc1234')
-    # Sen manuel girdiğinde bile GitHub Actions bunu senin yerine JSON'a yazar.
-    new_password = "BURAYA_OTOMATIK_CEKME_MANTIGI_GELECEK" 
-    return new_password
+    if response.status_code == 200:
+        # Sitedeki "Password: <b>abc123</b>" yapısını arıyoruz
+        # Not: Sitenin HTML yapısına göre burayı ince ayar çekebiliriz
+        match = re.search(r'Password: <b>(.*?)</b>', response.text)
+        if match:
+            yeni_sifre = match.group(1).strip()
+            print(f"Yeni şifre bulundu: {yeni_sifre}")
+            return yeni_sifre
+    return None
 
-def update_json(new_pass):
-    file_path = "vpn_config.json" # Senin JSON dosyanın adı
-    with open(file_path, 'r') as f:
+def json_guncelle(yeni_sifre):
+    dosya_adi = "password.json" # Dosya adının tam doğru olduğundan emin ol
+    
+    # Mevcut JSON'u oku
+    with open(dosya_adi, 'r') as f:
         data = json.load(f)
     
-    data['password'] = new_pass # JSON içindeki password alanını güncelle
+    # Şifreyi güncelle (JSON yapın { "password": "..." } şeklindeyse)
+    data['pass'] = yeni_sifre
     
-    with open(file_path, 'w') as f:
+    # JSON'u geri kaydet
+    with open(dosya_adi, 'w') as f:
         json.dump(data, f, indent=4)
+    print("JSON başarıyla güncellendi.")
 
 if __name__ == "__main__":
-    # Bu kısım şimdilik taslak, şifreyi bulduğunda dosyayı günceller
-    # pass_val = get_vpn_password()
-    # update_json(pass_val)
-    print("Sistem Hazır!")
+    sifre = vpn_password_al()
+    if sifre:
+        json_guncelle(sifre)
+    else:
+        print("Şifre bulunamadı, site yapısı değişmiş olabilir.")
