@@ -1,0 +1,40 @@
+name: VPN Password Auto Update
+
+on:
+  schedule:
+    # Her 6 saatte bir çalışır (00:00, 06:00, 12:00, 18:00 UTC)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    # Bu seçenek, Actions sekmesinden "Run workflow" diyerek manuel başlatmanı sağlar.
+
+jobs:
+  update-vpn:
+    runs-on: ubuntu-latest
+    
+    # Botun dosyayı değiştirebilmesi için yazma izni veriyoruz
+    permissions:
+      contents: write
+
+    steps:
+      - name: Depoyu Kontrol Et
+        uses: actions/checkout@v4
+
+      - name: Python Kurulumu
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Gerekli Kütüphaneleri Kur
+        run: pip install requests
+
+      - name: Şifre Güncelleme Scriptini Çalıştır
+        run: python update_pass.py
+
+      - name: Değişiklikleri Kaydet ve Pushla
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add password.json
+          # Eğer değişiklik yoksa hata vermemesi için "|| exit 0" ekliyoruz
+          git commit -m "Otomatik Şifre Güncelleme: $(date)" || exit 0
+          git push
