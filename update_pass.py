@@ -3,50 +3,41 @@ import json
 import re
 
 def vpn_password_al():
-    # Cloudflare engeline takılmamak için scraper oluşturuyoruz
     scraper = cloudscraper.create_scraper(
-        browser={
-            'browser': 'chrome',
-            'platform': 'windows',
-            'desktop': True
-        }
+        browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
     )
     
+    # Görseldeki kesin adres
     url = "https://www.vpnbook.com/freevpn/openvpn"
     
     try:
         response = scraper.get(url, timeout=30)
         if response.status_code != 200:
-            print(f"Siteye erişim engellendi. Durum: {response.status_code}")
             return None
 
         content = response.text
 
-        # 1. YÖNTEM: Next.js veri havuzunu deşiyoruz
-        # Bu blokta şifre kesinlikle bulunur
-        next_data = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', content)
-        
-        if next_data:
-            data = json.loads(next_data.group(1))
+        # 1. YÖNTEM: vpnbook kullanıcı adını "çapa" (anchor) olarak kullan
+        # Kullanıcı adından sonraki 500 karakteri tara
+        if "vpnbook" in content:
+            after_username = content.split("vpnbook")[-1][:500]
+            # Sadece tırnak içindeki 7 haneli, rakam içeren dizileri bul
+            candidates = re.findall(r'\"([a-z0-9]{7,8})\"', after_username)
             
-            # Tüm JSON ağacını stringe çevirip içinde 7 haneli şifreyi arayalım
-            json_str = json.dumps(data)
-            # vpnbook kullanıcı adından hemen sonra gelen 7 haneli şifreyi bul
-            # Örnek: "vpnbook","password":"pvgz9pq"
-            match = re.search(r'"password":"([a-z0-9]{7,8})"', json_str)
-            if match:
-                sifre = match.group(1)
-                print(f"Bulunan Şifre: {sifre}")
-                return sifre
-
-        # 2. YÖNTEM: Ham metin taraması (Yedek)
-        # "pvgz9pq" gibi 7-8 haneli ve içinde rakam olan kelimeleri bul
-        potential = re.findall(r'[a-z0-9]{7,8}', content)
-        for aday in potential:
-            if any(char.isdigit() for char in aday):
-                if aday not in ['vpnbook', 'viewport', 'justify', 'visible', '180x180']:
-                    print(f"Yedek yöntemle bulundu: {aday}")
+            for aday in candidates:
+                # Kesin elemeler: Teknik kelimeler ve senin yakaladığın hatalı kodlar
+                if aday in ['8f193b7f', 'viewport', 'justify', 'visible', 'static', 'chunks']:
+                    continue
+                
+                # Şifre kriteri: En az bir rakam içermeli ve sadece harf/rakam olmalı
+                if any(char.isdigit() for char in aday) and aday.isalnum():
+                    print(f"Doğrulandı! Şifre: {aday}")
                     return aday
+
+        # 2. YÖNTEM: Eğer üstteki bulamazsa tüm sayfada "password":"sifre" kalıbını ara
+        match = re.search(r'\"password\":\"([a-z0-9]{7,8})\"', content)
+        if match:
+            return match.group(1)
 
     except Exception as e:
         print(f"Hata: {e}")
@@ -57,11 +48,11 @@ def json_guncelle(yeni_sifre):
     data = {"password": yeni_sifre}
     with open(dosya_adi, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
-    print(f"Güncelleme Başarılı: {yeni_sifre}")
+    print(f"Başarıyla güncellendi: {yeni_sifre}")
 
 if __name__ == "__main__":
     sifre = vpn_password_al()
     if sifre:
         json_guncelle(sifre)
     else:
-        print("Şifre hala alınamıyor. Cloudflare botu durdurmuş olabilir.")
+        print("Şifre hala yakalanamıyor, manuel kontrol gerekebilir.")
