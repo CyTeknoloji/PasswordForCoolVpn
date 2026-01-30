@@ -25,7 +25,7 @@ jobs:
           python-version: '3.9'
 
       - name: Gerekli Kütüphaneleri Kur
-        run: pip install requests
+        run: pip install cloudscraper
 
       - name: Şifre Güncelleme Scriptini Çalıştır
         run: python update_pass.py
