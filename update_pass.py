@@ -51,7 +51,7 @@ def vpn_password_al():
 def json_guncelle(yeni_sifre):
     dosya_adi = "password.json"
     with open(dosya_adi, 'w', encoding='utf-8') as f:
-        json.dump({"password": yeni_sifre}, f, indent=4)
+        json.dump({"pass": yeni_sifre}, f, indent=4)
     print(f"JSON başarıyla güncellendi: {yeni_sifre}")
 
 if __name__ == "__main__":
