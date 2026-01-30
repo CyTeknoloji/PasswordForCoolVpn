@@ -3,41 +3,46 @@ import json
 import re
 
 def vpn_password_al():
+    # En üst düzey tarayıcı taklidi
     scraper = cloudscraper.create_scraper(
-        browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
+        browser={
+            'browser': 'chrome',
+            'platform': 'windows',
+            'desktop': True,
+            'mobile': False
+        }
     )
     
-    # Görseldeki kesin adres
     url = "https://www.vpnbook.com/freevpn/openvpn"
     
     try:
         response = scraper.get(url, timeout=30)
-        if response.status_code != 200:
-            return None
-
         content = response.text
 
-        # 1. YÖNTEM: vpnbook kullanıcı adını "çapa" (anchor) olarak kullan
-        # Kullanıcı adından sonraki 500 karakteri tara
-        if "vpnbook" in content:
-            after_username = content.split("vpnbook")[-1][:500]
-            # Sadece tırnak içindeki 7 haneli, rakam içeren dizileri bul
-            candidates = re.findall(r'\"([a-z0-9]{7,8})\"', after_username)
-            
-            for aday in candidates:
-                # Kesin elemeler: Teknik kelimeler ve senin yakaladığın hatalı kodlar
-                if aday in ['8f193b7f', 'viewport', 'justify', 'visible', 'static', 'chunks']:
-                    continue
-                
-                # Şifre kriteri: En az bir rakam içermeli ve sadece harf/rakam olmalı
-                if any(char.isdigit() for char in aday) and aday.isalnum():
-                    print(f"Doğrulandı! Şifre: {aday}")
-                    return aday
+        # Eğer site tamamen engelliyorsa içeriği görelim (Debug için)
+        if "vpnbook" not in content.lower():
+            print("Site içeriği bot korumasına takıldı, veri alınamıyor.")
+            return None
 
-        # 2. YÖNTEM: Eğer üstteki bulamazsa tüm sayfada "password":"sifre" kalıbını ara
-        match = re.search(r'\"password\":\"([a-z0-9]{7,8})\"', content)
-        if match:
-            return match.group(1)
+        # STRATEJİ: Görselde şifre 'pvgz9pq' gibi 7 haneli. 
+        # Genellikle "password":"..." veya >pvgz9pq< şeklinde durur.
+        
+        # Tüm 7 haneli, en az 1 rakam içeren ve 'vpnbook' olmayan dizileri bul
+        # Bu sefer regex'i çok daraltıyoruz
+        pattern = r'[a-z0-9]{7}'
+        matches = re.findall(pattern, content)
+        
+        # Yasaklı kelime listesini genişletelim
+        blacklist = ['viewport', 'justify', 'visible', 'static', 'chunks', 'charset', 'display', 'version', '180x180', 'favicon']
+
+        for aday in matches:
+            # 1. Kriter: Harf ve rakam karışık olmalı (sadece harf veya sadece rakam olanları ele)
+            if any(c.isdigit() for c in aday) and any(c.isalpha() for c in aday):
+                # 2. Kriter: Yasaklı listede olmamalı
+                if aday not in blacklist and "vpnbook" not in aday:
+                    # 3. Kriter: Genellikle şifreler sesli harf içermeyebilir veya rastgeledir
+                    print(f"Potansiyel Şifre Bulundu: {aday}")
+                    return aday
 
     except Exception as e:
         print(f"Hata: {e}")
@@ -48,11 +53,12 @@ def json_guncelle(yeni_sifre):
     data = {"password": yeni_sifre}
     with open(dosya_adi, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
-    print(f"Başarıyla güncellendi: {yeni_sifre}")
+    print(f"GUNCELLEME BASARILI: {yeni_sifre}")
 
 if __name__ == "__main__":
     sifre = vpn_password_al()
     if sifre:
         json_guncelle(sifre)
     else:
-        print("Şifre hala yakalanamıyor, manuel kontrol gerekebilir.")
+        # Eğer hala bulamazsa, manuel girmek için JSON'u bozma
+        print("Sifre hala yakalanamıyor.")
