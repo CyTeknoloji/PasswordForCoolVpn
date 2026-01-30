@@ -1,64 +1,61 @@
-import cloudscraper
+from playwright.sync_api import sync_playwright
 import json
+import time
 import re
 
 def vpn_password_al():
-    # En üst düzey tarayıcı taklidi
-    scraper = cloudscraper.create_scraper(
-        browser={
-            'browser': 'chrome',
-            'platform': 'windows',
-            'desktop': True,
-            'mobile': False
-        }
-    )
-    
-    url = "https://www.vpnbook.com/freevpn/openvpn"
-    
-    try:
-        response = scraper.get(url, timeout=30)
-        content = response.text
-
-        # Eğer site tamamen engelliyorsa içeriği görelim (Debug için)
-        if "vpnbook" not in content.lower():
-            print("Site içeriği bot korumasına takıldı, veri alınamıyor.")
-            return None
-
-        # STRATEJİ: Görselde şifre 'pvgz9pq' gibi 7 haneli. 
-        # Genellikle "password":"..." veya >pvgz9pq< şeklinde durur.
+    with sync_playwright() as p:
+        # Tarayıcıyı başlat (headless=True: arkaplanda çalışır)
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+        page = context.new_page()
         
-        # Tüm 7 haneli, en az 1 rakam içeren ve 'vpnbook' olmayan dizileri bul
-        # Bu sefer regex'i çok daraltıyoruz
-        pattern = r'[a-z0-9]{7}'
-        matches = re.findall(pattern, content)
-        
-        # Yasaklı kelime listesini genişletelim
-        blacklist = ['viewport', 'justify', 'visible', 'static', 'chunks', 'charset', 'display', 'version', '180x180', 'favicon']
+        try:
+            print("Siteye gidiliyor...")
+            page.goto("https://www.vpnbook.com/freevpn/openvpn", wait_until="networkidle", timeout=60000)
+            
+            # JavaScript'in kutuları doldurması için biraz bekleyelim
+            page.wait_for_timeout(5000) 
+            
+            # Görseldeki "PASSWORD" yazısını bul ve yanındaki/altındaki metni al
+            # Next.js yapısında şifre genellikle bir div içinde 'pvgz9pq' gibi durur.
+            content = page.content()
+            
+            # Strateji: Sitedeki tüm metni çek ve 'vpnbook' (username) kelimesinden sonra gelen 
+            # ilk 7-8 haneli harf-rakam karışık kelimeyi yakala.
+            # (Bu yöntem görseldeki hiyerarşiyi tam taklit eder)
+            
+            # Önce kullanıcı adını bulalım (referans noktası)
+            body_text = page.inner_text("body")
+            if "vpnbook" in body_text:
+                # Kullanıcı adından sonraki kısmı kes
+                after_username = body_text.split("vpnbook")[-1]
+                
+                # Bu kısımdaki ilk 7-8 haneli, rakam içeren kelimeyi bul
+                match = re.search(r'([a-z0-9]{7,8})', after_username)
+                
+                if match:
+                    sifre = match.group(1).strip()
+                    # Teknik kelimeleri engelle
+                    if sifre not in ['static', 'chunks', 'viewport', 'visible']:
+                        print(f"Buldum! Şifre ekranda göründüğü gibi: {sifre}")
+                        return sifre
 
-        for aday in matches:
-            # 1. Kriter: Harf ve rakam karışık olmalı (sadece harf veya sadece rakam olanları ele)
-            if any(c.isdigit() for c in aday) and any(c.isalpha() for c in aday):
-                # 2. Kriter: Yasaklı listede olmamalı
-                if aday not in blacklist and "vpnbook" not in aday:
-                    # 3. Kriter: Genellikle şifreler sesli harf içermeyebilir veya rastgeledir
-                    print(f"Potansiyel Şifre Bulundu: {aday}")
-                    return aday
-
-    except Exception as e:
-        print(f"Hata: {e}")
+            print("Hata: Şifre metni ekranda tespit edilemedi.")
+            
+        except Exception as e:
+            print(f"Tarayıcı hatası: {e}")
+        finally:
+            browser.close()
     return None
 
 def json_guncelle(yeni_sifre):
     dosya_adi = "password.json"
-    data = {"password": yeni_sifre}
     with open(dosya_adi, 'w', encoding='utf-8') as f:
-        json.dump(data, f, indent=4)
-    print(f"GUNCELLEME BASARILI: {yeni_sifre}")
+        json.dump({"password": yeni_sifre}, f, indent=4)
+    print(f"JSON Başarıyla Yazıldı: {yeni_sifre}")
 
 if __name__ == "__main__":
     sifre = vpn_password_al()
     if sifre:
         json_guncelle(sifre)
-    else:
-        # Eğer hala bulamazsa, manuel girmek için JSON'u bozma
-        print("Sifre hala yakalanamıyor.")
