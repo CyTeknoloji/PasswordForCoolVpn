@@ -3,7 +3,6 @@ import json
 import re
 
 def vpn_password_al():
-    # Görseldeki doğru alt sayfa
     url = "https://www.vpnbook.com/freevpn/openvpn"
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
@@ -16,31 +15,24 @@ def vpn_password_al():
 
         content = response.text
 
-        # 1. YÖNTEM: Next.js Veri Bloklarını Tara (En Garantisi)
-        # Sitedeki tüm JSON benzeri yapıları bulur
-        json_blocks = re.findall(r'\{[^{}]+\}', content)
+        # STRATEJİ: vpnbook kullanıcı adından sonra gelen ilk şifreyi bul.
+        # Görselde USERNAME: vpnbook, PASSWORD: [şifre] şeklinde bir hiyerarşi var.
         
-        # Ekran görüntündeki güncel şifre: pvgz9pq (7 karakter)
-        # Şifre kalıbı: Sadece küçük harf ve rakamdan oluşan 7 veya 8 karakterli diziler
-        sifre_kalibi = re.compile(r'^[a-z0-9]{7,8}$')
-
-        for blok in json_blocks:
-            # JSON içindeki tırnak içindeki kelimeleri ayıkla
-            kelimeler = re.findall(r'"([^"]+)"', blok)
-            for kelime in kelimeler:
-                # 'viewport', 'width', 'vpnbook' gibi teknik kelimeleri filtrele
-                if sifre_kalibi.match(kelime):
-                    if kelime not in ['viewport', 'vpnbook', 'openvpn', 'display', 'initial', 'charset']:
-                        print(f"Şifre Bulundu: {kelime}")
-                        return kelime
-
-        # 2. YÖNTEM: Eğer üstteki bulamazsa, metin içindeki Password kutusunu manuel tara
-        # Next.js bazen veriyi 'props' içinde gönderir
-        if "pvgz9pq" in content or "Password" in content:
-            # Password kelimesinden sonra gelen ilk 7-8 haneli alfanümerik dize
-            match = re.search(r'Password.*?([a-z0-9]{7,8})', content, re.IGNORECASE | re.DOTALL)
-            if match:
-                return match.group(1)
+        # vpnbook kelimesini bul ve ondan sonraki 200 karakterlik alanı incele
+        parts = content.split("vpnbook")
+        
+        for i in range(1, len(parts)):
+            # vpnbook'tan sonra gelen bölümdeki tırnak içindeki veya tag içindeki dizileri ara
+            # Genellikle Next.js verisinde "vpnbook","password":"pvgz9pq" gibi durur.
+            candidates = re.findall(r'"([a-z0-9]{7,8})"', parts[i])
+            
+            for aday in candidates:
+                # Yasaklı kelimeleri filtrele
+                if aday not in ['vpnbook', 'justify', 'display', 'initial', 'charset', 'version', 'visible']:
+                    # Şifre mutlaka rakam içermelidir (VPNBook şifrelerinin genel özelliği)
+                    if any(char.isdigit() for char in aday):
+                        print(f"Doğru Şifre Yakalandı: {aday}")
+                        return aday
 
     except Exception as e:
         print(f"Hata: {e}")
@@ -48,7 +40,6 @@ def vpn_password_al():
 
 def json_guncelle(yeni_sifre):
     dosya_adi = "password.json"
-    # Dosya içeriğini tam istediğin formatta (sadece password anahtarıyla) yazar
     data = {"password": yeni_sifre}
     with open(dosya_adi, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
@@ -59,4 +50,4 @@ if __name__ == "__main__":
     if sifre:
         json_guncelle(sifre)
     else:
-        print("Şifre yakalanamadı. Site koruması veya yapı değişikliği var.")
+        print("Şifre bulunamadı.")
